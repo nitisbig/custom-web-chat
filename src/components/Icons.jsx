@@ -81,4 +81,21 @@ export const Icon = {
       <path d="M12 3v3m0 12v3M3 12h3m12 0h3M5.6 5.6l2.1 2.1m8.6 8.6 2.1 2.1m0-12.8-2.1 2.1M7.7 16.3l-2.1 2.1" />
     </svg>
   ),
+  Chevron: (p) => (
+    <svg {...base} {...p}>
+      <path d="m6 9 6 6 6-6" />
+    </svg>
+  ),
+  Lock: (p) => (
+    <svg {...base} {...p}>
+      <rect x="3" y="11" width="18" height="11" rx="2" />
+      <path d="M7 11V7a5 5 0 0 1 10 0v4" />
+    </svg>
+  ),
+  Upload: (p) => (
+    <svg {...base} {...p}>
+      <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+      <path d="M17 8l-5-5-5 5M12 3v12" />
+    </svg>
+  ),
 };

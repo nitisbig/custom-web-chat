@@ -2,6 +2,7 @@ import { useEffect, useRef } from "react";
 import { useStore } from "../store.js";
 import Message from "./Message.jsx";
 import { Icon } from "./Icons.jsx";
+import * as vault from "../lib/vault.js";
 
 const STARTERS = [
   "Explain a tricky concept simply",
@@ -12,9 +13,18 @@ const STARTERS = [
 
 function EmptyState() {
   const setComposer = useStore((s) => s.setComposer);
-  const settings = useStore((s) => s.settings);
   const openSettings = useStore((s) => s.openSettings);
-  const configured = settings.baseUrl && settings.model && settings.apiKey;
+  const convo = useStore((s) => s.activeConversation());
+  const resolveProvider = useStore((s) => s.resolveProvider);
+  const vaultLocked = useStore((s) => s.vaultLocked);
+  // eslint-disable-next-line no-unused-vars
+  const vaultTick = useStore((s) => s.vaultTick);
+  const provider = resolveProvider(convo);
+  const configured =
+    !!provider &&
+    !!provider.baseUrl &&
+    !!(convo?.model || "") &&
+    (!provider.needsKey || (!vaultLocked && vault.hasSecret(provider.id)));
 
   return (
     <div className="flex h-full flex-col items-center justify-center px-6 text-center">

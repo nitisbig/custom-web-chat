@@ -1,7 +1,20 @@
 import { create } from "zustand";
-import { KEYS, readJSON, writeJSON, readString, writeString } from "./lib/storage";
-import { DEFAULT_SETTINGS } from "./lib/presets";
-import { streamChat, ApiError } from "./lib/api";
+import {
+  KEYS,
+  readJSON,
+  writeJSON,
+  readString,
+  writeString,
+} from "./lib/storage";
+import {
+  DEFAULT_SETTINGS,
+  DEFAULT_PROVIDERS,
+  DEFAULT_DEFAULTS,
+  PROVIDER_PRESETS,
+} from "./lib/presets";
+import { streamChat, fetchModels, ApiError } from "./lib/api";
+import * as vault from "./lib/vault";
+import { parseCredentials } from "./lib/importCreds";
 import {
   applyOutgoingTransforms,
   collectCommands,
@@ -11,20 +24,78 @@ import {
 const uid = () =>
   Date.now().toString(36) + Math.random().toString(36).slice(2, 8);
 
-function newConversation() {
+function newConversation(defaults) {
   return {
     id: uid(),
     title: "New chat",
     messages: [], // { id, role, content, error?, note? }
+    providerId: defaults?.providerId || "",
+    model: defaults?.model || "",
     createdAt: Date.now(),
     updatedAt: Date.now(),
   };
 }
 
-function loadConversations() {
+function loadSettings() {
+  const stored = readJSON(KEYS.settings, {});
+  return {
+    systemPrompt: stored.systemPrompt ?? DEFAULT_SETTINGS.systemPrompt,
+    temperature:
+      typeof stored.temperature === "number"
+        ? stored.temperature
+        : DEFAULT_SETTINGS.temperature,
+    maxTokens:
+      typeof stored.maxTokens === "number"
+        ? stored.maxTokens
+        : DEFAULT_SETTINGS.maxTokens,
+  };
+}
+
+// First-run seed / one-time migration from the old single-config `settings`.
+function migrateLegacy() {
+  const legacy = readJSON(KEYS.settings, null);
+  if (legacy && legacy.baseUrl && legacy.model) {
+    const preset = PROVIDER_PRESETS.find((p) => p.baseUrl === legacy.baseUrl);
+    const id = preset ? preset.id : "legacy";
+    const provider = {
+      id,
+      label: preset ? preset.label : "Imported",
+      baseUrl: legacy.baseUrl,
+      models: [legacy.model],
+      needsKey: preset ? preset.needsKey : !!legacy.apiKey,
+    };
+    return {
+      providers: [provider],
+      defaults: { providerId: id, model: legacy.model },
+      secret: legacy.apiKey ? { id, key: legacy.apiKey } : null,
+    };
+  }
+  return {
+    providers: DEFAULT_PROVIDERS,
+    defaults: DEFAULT_DEFAULTS,
+    secret: null,
+  };
+}
+
+function deriveDefaults(providers) {
+  const first = providers[0];
+  return {
+    providerId: first?.id || "",
+    model: first?.models?.[0] || "",
+  };
+}
+
+function loadConversations(defaults) {
   const stored = readJSON(KEYS.conversations, null);
-  if (Array.isArray(stored) && stored.length) return stored;
-  return [newConversation()];
+  if (Array.isArray(stored) && stored.length) {
+    // Backfill provider/model on conversations from before this feature.
+    return stored.map((c) => ({
+      ...c,
+      providerId: c.providerId || defaults.providerId,
+      model: c.model || defaults.model,
+    }));
+  }
+  return [newConversation(defaults)];
 }
 
 function loadActiveId(convos) {
@@ -40,7 +111,9 @@ function deriveTitle(text) {
 
 export const useStore = create((set, get) => ({
   // ---- persisted core state ----
-  settings: { ...DEFAULT_SETTINGS, ...readJSON(KEYS.settings, {}) },
+  settings: loadSettings(), // global gen params: systemPrompt/temperature/maxTokens
+  providers: [],
+  defaults: DEFAULT_DEFAULTS,
   conversations: [],
   activeId: null,
   theme: readString(KEYS.theme, "dark"),
@@ -53,13 +126,43 @@ export const useStore = create((set, get) => ({
   composer: "",
   settingsOpen: false,
   pluginsOpen: false,
+  unlockOpen: false,
+  vaultLocked: false,
+  vaultTick: 0, // bumped when secrets change, to nudge dependent components
   sidebarOpen: true,
 
   // ---- init ----
   init() {
-    const conversations = loadConversations();
+    vault.initVault();
+
+    let providers = readJSON(KEYS.providers, null);
+    let defaults = readJSON(KEYS.defaults, null);
+
+    if (!Array.isArray(providers) || !providers.length) {
+      const mig = migrateLegacy();
+      providers = mig.providers;
+      defaults = defaults || mig.defaults;
+      writeJSON(KEYS.providers, providers);
+      writeJSON(KEYS.defaults, defaults);
+      if (mig.secret) vault.setSecret(mig.secret.id, mig.secret.key);
+    }
+    if (!defaults || !defaults.providerId) {
+      defaults = deriveDefaults(providers);
+      writeJSON(KEYS.defaults, defaults);
+    }
+
+    const conversations = loadConversations(defaults);
     const activeId = loadActiveId(conversations);
-    set({ conversations, activeId });
+    // Persist any backfilled conversation fields.
+    writeJSON(KEYS.conversations, conversations);
+
+    set({
+      providers,
+      defaults,
+      conversations,
+      activeId,
+      vaultLocked: vault.isLocked(),
+    });
     get().applyTheme();
   },
 
@@ -67,6 +170,36 @@ export const useStore = create((set, get) => ({
   activeConversation() {
     const { conversations, activeId } = get();
     return conversations.find((c) => c.id === activeId) || conversations[0];
+  },
+
+  resolveProvider(convo) {
+    const { providers, defaults } = get();
+    const wantId = convo?.providerId || defaults.providerId;
+    return (
+      providers.find((p) => p.id === wantId) ||
+      providers.find((p) => p.id === defaults.providerId) ||
+      providers[0] ||
+      null
+    );
+  },
+
+  // The resolved { baseUrl, apiKey, model, ... } for the active conversation,
+  // shaped exactly like streamChat expects. apiKey may be "" if locked/unset.
+  effectiveSettings() {
+    const convo = get().activeConversation();
+    const provider = get().resolveProvider(convo);
+    const model = (convo && convo.model) || get().defaults.model;
+    const s = get().settings;
+    return {
+      baseUrl: provider?.baseUrl || "",
+      apiKey: provider ? vault.getSecret(provider.id) : "",
+      model: model || "",
+      systemPrompt: s.systemPrompt,
+      temperature: s.temperature,
+      maxTokens: s.maxTokens,
+      providerId: provider?.id || "",
+      providerLabel: provider?.label || "",
+    };
   },
 
   // ---- theming ----
@@ -87,7 +220,7 @@ export const useStore = create((set, get) => ({
     get().applyTheme();
   },
 
-  // ---- settings ----
+  // ---- settings (global gen params) ----
   updateSettings(patch) {
     const settings = { ...get().settings, ...patch };
     set({ settings });
@@ -105,8 +238,134 @@ export const useStore = create((set, get) => ({
   closePlugins() {
     set({ pluginsOpen: false });
   },
+  openUnlock() {
+    set({ unlockOpen: true });
+  },
+  closeUnlock() {
+    set({ unlockOpen: false });
+  },
   toggleSidebar() {
     set({ sidebarOpen: !get().sidebarOpen });
+  },
+
+  // ---- providers ----
+  persistProviders() {
+    writeJSON(KEYS.providers, get().providers);
+  },
+  persistDefaults() {
+    writeJSON(KEYS.defaults, get().defaults);
+  },
+
+  addProvider(partial = {}) {
+    const id = partial.id || "prov-" + uid();
+    const provider = {
+      id,
+      label: partial.label || id,
+      baseUrl: partial.baseUrl || "",
+      models: partial.models || [],
+      needsKey: partial.needsKey !== false,
+    };
+    set((s) => ({ providers: [...s.providers, provider] }));
+    get().persistProviders();
+    return id;
+  },
+
+  updateProvider(id, patch) {
+    set((s) => ({
+      providers: s.providers.map((p) => (p.id === id ? { ...p, ...patch } : p)),
+    }));
+    get().persistProviders();
+  },
+
+  removeProvider(id) {
+    vault.removeSecret(id);
+    set((s) => ({ providers: s.providers.filter((p) => p.id !== id) }));
+    // Repoint defaults if they referenced the removed provider.
+    if (get().defaults.providerId === id) {
+      set({ defaults: deriveDefaults(get().providers) });
+      get().persistDefaults();
+    }
+    get().persistProviders();
+    set((s) => ({ vaultTick: s.vaultTick + 1 }));
+  },
+
+  async setProviderKey(id, key) {
+    await vault.setSecret(id, key);
+    set((s) => ({ vaultTick: s.vaultTick + 1 }));
+  },
+
+  // Fetch the provider's model list and merge with any manual entries.
+  async fetchProviderModels(id) {
+    const provider = get().providers.find((p) => p.id === id);
+    if (!provider) return [];
+    const models = await fetchModels({
+      baseUrl: provider.baseUrl,
+      apiKey: vault.getSecret(id),
+    });
+    const merged = Array.from(new Set([...(provider.models || []), ...models]));
+    get().updateProvider(id, { models: merged });
+    return models;
+  },
+
+  setDefaults(providerId, model) {
+    const defaults = { providerId, model };
+    set({ defaults });
+    get().persistDefaults();
+  },
+
+  // ---- vault / passphrase ----
+  async unlockVault(passphrase) {
+    await vault.unlock(passphrase);
+    set((s) => ({
+      vaultLocked: vault.isLocked(),
+      unlockOpen: false,
+      vaultTick: s.vaultTick + 1,
+    }));
+  },
+  async setVaultPassphrase(passphrase) {
+    await vault.setPassphrase(passphrase);
+    set((s) => ({ vaultLocked: false, vaultTick: s.vaultTick + 1 }));
+  },
+  async disableVaultEncryption() {
+    await vault.disableEncryption();
+    set((s) => ({ vaultLocked: false, vaultTick: s.vaultTick + 1 }));
+  },
+
+  // ---- credential import ----
+  async importCredentials(text, filename) {
+    const { providers, secrets } = parseCredentials(text, filename);
+    const hasSecrets = Object.keys(secrets).length > 0;
+    if (hasSecrets && vault.isLocked()) {
+      set({ unlockOpen: true });
+      throw new Error("Unlock the vault before importing keys.");
+    }
+
+    const cur = [...get().providers];
+    for (const p of providers) {
+      const i = cur.findIndex((x) => x.id === p.id);
+      if (i >= 0) {
+        cur[i] = {
+          ...cur[i],
+          ...p,
+          models: Array.from(
+            new Set([...(cur[i].models || []), ...(p.models || [])])
+          ),
+        };
+      } else {
+        cur.push(p);
+      }
+    }
+    set({ providers: cur });
+    get().persistProviders();
+
+    if (hasSecrets) {
+      await vault.importSecrets(secrets);
+      set((s) => ({ vaultTick: s.vaultTick + 1 }));
+    }
+    return {
+      providerCount: providers.length,
+      keyCount: Object.keys(secrets).length,
+    };
   },
 
   // ---- plugins ----
@@ -130,7 +389,7 @@ export const useStore = create((set, get) => ({
   },
 
   createConversation() {
-    const convo = newConversation();
+    const convo = newConversation(get().defaults);
     set((s) => ({
       conversations: [convo, ...s.conversations],
       activeId: convo.id,
@@ -147,7 +406,7 @@ export const useStore = create((set, get) => ({
 
   deleteConversation(id) {
     let convos = get().conversations.filter((c) => c.id !== id);
-    if (convos.length === 0) convos = [newConversation()];
+    if (convos.length === 0) convos = [newConversation(get().defaults)];
     let activeId = get().activeId;
     if (activeId === id) activeId = convos[0].id;
     set({ conversations: convos, activeId });
@@ -174,6 +433,17 @@ export const useStore = create((set, get) => ({
       ),
     }));
     get().persistConversations();
+  },
+
+  // Set the provider+model for a conversation, and remember it as the default.
+  setConversationModel(convoId, providerId, model) {
+    set((s) => ({
+      conversations: s.conversations.map((c) =>
+        c.id === convoId ? { ...c, providerId, model } : c
+      ),
+    }));
+    get().persistConversations();
+    get().setDefaults(providerId, model);
   },
 
   // ---- message helpers ----
@@ -203,7 +473,7 @@ export const useStore = create((set, get) => ({
     const s = get();
     return {
       getState: get,
-      settings: s.settings,
+      settings: get().effectiveSettings(),
       updateSettings: s.updateSettings,
       getComposer: () => get().composer,
       setComposer: s.setComposer,
@@ -239,11 +509,38 @@ export const useStore = create((set, get) => ({
       // Unknown command → fall through and send as a normal message.
     }
 
-    const { settings } = state;
-    if (!settings.baseUrl || !settings.model) {
+    // Resolve the provider + model + key for the active conversation.
+    const convo = get().activeConversation();
+    const provider = get().resolveProvider(convo);
+    const model = (convo && convo.model) || get().defaults.model;
+
+    if (!provider || !provider.baseUrl || !model) {
       set({ settingsOpen: true });
       return;
     }
+    if (provider.needsKey) {
+      if (vault.isLocked()) {
+        get().addSystemNote(
+          `Unlock your saved keys to use ${provider.label}.`
+        );
+        set({ unlockOpen: true });
+        return;
+      }
+      if (!vault.getSecret(provider.id)) {
+        get().addSystemNote(`No API key set for ${provider.label}.`);
+        set({ settingsOpen: true });
+        return;
+      }
+    }
+
+    const effSettings = {
+      baseUrl: provider.baseUrl,
+      apiKey: vault.getSecret(provider.id),
+      model,
+      systemPrompt: state.settings.systemPrompt,
+      temperature: state.settings.temperature,
+      maxTokens: state.settings.maxTokens,
+    };
 
     // Append user message; set title if first message.
     const userMsg = { id: uid(), role: "user", content: text };
@@ -268,15 +565,15 @@ export const useStore = create((set, get) => ({
     });
 
     // Build the outgoing payload from real chat turns (exclude notes/errors).
-    const convo = get().activeConversation();
-    const turns = convo.messages
+    const activeConvo = get().activeConversation();
+    const turns = activeConvo.messages
       .filter((m) => (m.role === "user" || m.role === "assistant") && !m.error)
       .map((m) => ({ role: m.role, content: m.content }))
       .filter((m) => m.content !== ""); // drop the empty placeholder
 
     let payload = [];
-    if (settings.systemPrompt && settings.systemPrompt.trim()) {
-      payload.push({ role: "system", content: settings.systemPrompt.trim() });
+    if (effSettings.systemPrompt && effSettings.systemPrompt.trim()) {
+      payload.push({ role: "system", content: effSettings.systemPrompt.trim() });
     }
     payload.push(...turns);
     payload = applyOutgoingTransforms(
@@ -300,7 +597,7 @@ export const useStore = create((set, get) => ({
 
     try {
       const full = await streamChat({
-        settings,
+        settings: effSettings,
         messages: payload,
         signal: abortCtrl.signal,
         onDelta: (_delta, acc) => patchAssistant({ content: acc }),

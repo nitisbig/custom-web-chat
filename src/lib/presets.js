@@ -8,6 +8,7 @@ export const PROVIDER_PRESETS = [
     baseUrl: "https://api.openai.com/v1",
     model: "gpt-4o-mini",
     needsKey: true,
+    env: "OPENAI_API_KEY",
     docs: "https://platform.openai.com/api-keys",
   },
   {
@@ -16,6 +17,7 @@ export const PROVIDER_PRESETS = [
     baseUrl: "https://openrouter.ai/api/v1",
     model: "openai/gpt-4o-mini",
     needsKey: true,
+    env: "OPENROUTER_API_KEY",
     docs: "https://openrouter.ai/keys",
   },
   {
@@ -24,6 +26,7 @@ export const PROVIDER_PRESETS = [
     baseUrl: "https://api.groq.com/openai/v1",
     model: "llama-3.3-70b-versatile",
     needsKey: true,
+    env: "GROQ_API_KEY",
     docs: "https://console.groq.com/keys",
   },
   {
@@ -32,6 +35,7 @@ export const PROVIDER_PRESETS = [
     baseUrl: "https://api.together.xyz/v1",
     model: "meta-llama/Llama-3.3-70B-Instruct-Turbo",
     needsKey: true,
+    env: "TOGETHER_API_KEY",
     docs: "https://api.together.xyz/settings/api-keys",
   },
   {
@@ -40,6 +44,7 @@ export const PROVIDER_PRESETS = [
     baseUrl: "https://api.deepseek.com/v1",
     model: "deepseek-chat",
     needsKey: true,
+    env: "DEEPSEEK_API_KEY",
     docs: "https://platform.deepseek.com/api_keys",
   },
   {
@@ -48,6 +53,7 @@ export const PROVIDER_PRESETS = [
     baseUrl: "https://api.mistral.ai/v1",
     model: "mistral-small-latest",
     needsKey: true,
+    env: "MISTRAL_API_KEY",
     docs: "https://console.mistral.ai/api-keys",
   },
   {
@@ -68,10 +74,35 @@ export const PROVIDER_PRESETS = [
   },
 ];
 
-export const DEFAULT_SETTINGS = {
-  baseUrl: "https://api.openai.com/v1",
-  apiKey: "",
+/** Turn a preset into a provider config object (non-secret). */
+export function presetToProvider(p) {
+  return {
+    id: p.id,
+    label: p.label,
+    baseUrl: p.baseUrl,
+    models: p.model ? [p.model] : [],
+    needsKey: !!p.needsKey,
+  };
+}
+
+/** Fresh installs start with the two most common providers configured. */
+export const DEFAULT_PROVIDERS = ["openai", "ollama"]
+  .map((id) => PROVIDER_PRESETS.find((p) => p.id === id))
+  .map(presetToProvider);
+
+export const DEFAULT_DEFAULTS = {
+  providerId: "openai",
   model: "gpt-4o-mini",
+};
+
+// Standard .env variable name → preset provider id (for credential import).
+export const ENV_KEY_MAP = PROVIDER_PRESETS.reduce((map, p) => {
+  if (p.env) map[p.env] = p.id;
+  return map;
+}, {});
+
+// Global generation params (per-provider config lives in `providers`).
+export const DEFAULT_SETTINGS = {
   systemPrompt: "",
   temperature: 0.7,
   maxTokens: 0, // 0 = provider default (omit)

@@ -5,12 +5,13 @@ import ChatView from "./components/ChatView.jsx";
 import Composer from "./components/Composer.jsx";
 import SettingsModal from "./components/SettingsModal.jsx";
 import PluginsPanel from "./components/PluginsPanel.jsx";
+import UnlockModal from "./components/UnlockModal.jsx";
+import ModelPicker from "./components/ModelPicker.jsx";
 import { Icon } from "./components/Icons.jsx";
 
 function TopBar() {
   const toggleSidebar = useStore((s) => s.toggleSidebar);
   const openSettings = useStore((s) => s.openSettings);
-  const settings = useStore((s) => s.settings);
   const clearActive = useStore((s) => s.clearActiveConversation);
   const convo = useStore((s) => s.activeConversation());
   const hasMessages = (convo?.messages?.length || 0) > 0;
@@ -31,16 +32,7 @@ function TopBar() {
       </div>
 
       <div className="flex items-center gap-2">
-        <button
-          onClick={openSettings}
-          className="hidden items-center gap-1.5 rounded-lg border border-border bg-surface-2/50 px-2.5 py-1.5 text-xs text-muted transition hover:border-accent hover:text-text sm:flex"
-          title="Model"
-        >
-          <span className="h-1.5 w-1.5 rounded-full bg-success" />
-          <span className="max-w-[180px] truncate">
-            {settings.model || "no model set"}
-          </span>
-        </button>
+        <ModelPicker />
 
         {hasMessages && (
           <button
@@ -82,6 +74,7 @@ export default function App() {
 
       <SettingsModal />
       <PluginsPanel />
+      <UnlockModal />
     </div>
   );
 }

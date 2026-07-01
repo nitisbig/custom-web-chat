@@ -9,6 +9,9 @@ export const KEYS = {
   theme: PREFIX + "theme.v2",
   accent: PREFIX + "accent.v2",
   plugins: PREFIX + "plugins.v2",
+  providers: PREFIX + "providers.v3",
+  vault: PREFIX + "vault.v3",
+  defaults: PREFIX + "defaults.v3",
 };
 
 export function readJSON(key, fallback) {

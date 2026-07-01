@@ -95,6 +95,38 @@ export async function streamChat({ settings, messages, signal, onDelta }) {
   return full;
 }
 
+/**
+ * Fetch the list of model ids a provider exposes via GET {baseUrl}/models.
+ * Tolerant of the common response shapes; throws ApiError on HTTP failure.
+ *
+ * @param {object} opts
+ * @param {string} opts.baseUrl
+ * @param {string} [opts.apiKey]
+ * @param {AbortSignal} [opts.signal]
+ * @returns {Promise<string[]>} sorted, de-duplicated model ids
+ */
+export async function fetchModels({ baseUrl, apiKey, signal }) {
+  const url = joinUrl(baseUrl, "/models");
+  const headers = {};
+  if (apiKey) headers["Authorization"] = "Bearer " + apiKey;
+
+  const res = await fetch(url, { method: "GET", headers, signal });
+  if (!res.ok) {
+    const detail = await res.text().catch(() => "");
+    throw new ApiError(res.status, res.statusText, detail);
+  }
+
+  const json = await res.json().catch(() => null);
+  // OpenAI: { data: [{ id }] }. Some gateways return a bare array or { models }.
+  const list = Array.isArray(json)
+    ? json
+    : json?.data || json?.models || [];
+  const ids = list
+    .map((m) => (typeof m === "string" ? m : m?.id || m?.name))
+    .filter(Boolean);
+  return Array.from(new Set(ids)).sort();
+}
+
 export class ApiError extends Error {
   constructor(status, statusText, detail) {
     super(formatApiError(status, statusText, detail));
