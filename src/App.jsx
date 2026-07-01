@@ -17,7 +17,7 @@ function TopBar() {
   const hasMessages = (convo?.messages?.length || 0) > 0;
 
   return (
-    <header className="flex items-center justify-between gap-3 border-b border-border bg-surface/60 px-4 py-3 backdrop-blur-md">
+    <header className="relative z-30 flex items-center justify-between gap-3 border-b border-border bg-surface/60 px-4 py-3 backdrop-blur-md">
       <div className="flex items-center gap-2">
         <button
           onClick={toggleSidebar}
