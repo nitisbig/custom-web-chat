@@ -1,0 +1,218 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/*
+  Theme tokens. Each theme sets raw "R G B" triples consumed by Tailwind's
+  rgb(var(--c-*) / <alpha-value>) color functions. Themes are applied by setting
+  data-theme on <html>. Accent hue is a separate axis (data-accent) so any base
+  theme can pair with any accent.
+*/
+:root {
+  --c-bg: 247 246 243;
+  --c-surface: 255 255 255;
+  --c-surface-2: 240 238 233;
+  --c-border: 226 223 216;
+  --c-text: 28 27 24;
+  --c-muted: 118 114 105;
+  --c-accent-fg: 255 255 255;
+  --c-danger: 200 62 62;
+  --c-success: 42 148 96;
+  color-scheme: light;
+}
+
+/* ---- Base themes ---- */
+[data-theme="light"] {
+  --c-bg: 247 246 243;
+  --c-surface: 255 255 255;
+  --c-surface-2: 240 238 233;
+  --c-border: 226 223 216;
+  --c-text: 28 27 24;
+  --c-muted: 118 114 105;
+  --c-danger: 200 62 62;
+  --c-success: 42 148 96;
+  color-scheme: light;
+}
+
+[data-theme="dark"] {
+  --c-bg: 15 16 21;
+  --c-surface: 23 25 32;
+  --c-surface-2: 31 34 44;
+  --c-border: 42 46 59;
+  --c-text: 230 232 238;
+  --c-muted: 150 156 172;
+  --c-danger: 255 107 107;
+  --c-success: 121 226 160;
+  color-scheme: dark;
+}
+
+/* Warm, paper-like dark theme */
+[data-theme="dusk"] {
+  --c-bg: 26 22 20;
+  --c-surface: 34 29 26;
+  --c-surface-2: 44 37 33;
+  --c-border: 58 49 44;
+  --c-text: 240 231 222;
+  --c-muted: 176 160 148;
+  --c-danger: 240 130 110;
+  --c-success: 150 200 140;
+  color-scheme: dark;
+}
+
+/* High-contrast near-black */
+[data-theme="noir"] {
+  --c-bg: 8 8 9;
+  --c-surface: 16 16 18;
+  --c-surface-2: 24 24 27;
+  --c-border: 38 38 42;
+  --c-text: 244 244 245;
+  --c-muted: 140 140 148;
+  --c-danger: 248 113 113;
+  --c-success: 134 239 172;
+  color-scheme: dark;
+}
+
+/* ---- Accent hues (independent of base theme) ---- */
+[data-accent="indigo"] {
+  --c-accent: 99 102 241;
+  --c-accent-soft: 99 102 241;
+}
+[data-accent="amber"] {
+  --c-accent: 217 148 40;
+  --c-accent-soft: 217 148 40;
+}
+[data-accent="emerald"] {
+  --c-accent: 16 160 110;
+  --c-accent-soft: 16 160 110;
+}
+[data-accent="rose"] {
+  --c-accent: 225 78 108;
+  --c-accent-soft: 225 78 108;
+}
+[data-accent="sky"] {
+  --c-accent: 40 150 220;
+  --c-accent-soft: 40 150 220;
+}
+
+html,
+body,
+#root {
+  height: 100%;
+}
+
+body {
+  @apply bg-bg text-text font-sans antialiased;
+  margin: 0;
+  transition: background-color 0.3s ease, color 0.3s ease;
+}
+
+/* Scrollbars */
+* {
+  scrollbar-width: thin;
+  scrollbar-color: rgb(var(--c-border)) transparent;
+}
+*::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+*::-webkit-scrollbar-thumb {
+  background: rgb(var(--c-border));
+  border-radius: 999px;
+  border: 2px solid transparent;
+  background-clip: padding-box;
+}
+*::-webkit-scrollbar-thumb:hover {
+  background: rgb(var(--c-muted) / 0.6);
+  background-clip: padding-box;
+}
+
+/* Subtle grain/atmosphere on the app background */
+.app-atmosphere::before {
+  content: "";
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  z-index: 0;
+  background-image: radial-gradient(
+    circle at 15% 0%,
+    rgb(var(--c-accent) / 0.06),
+    transparent 45%
+  );
+}
+
+/* Markdown content styling (scoped to .prose-chat) */
+.prose-chat {
+  @apply leading-relaxed;
+}
+.prose-chat > *:first-child {
+  margin-top: 0;
+}
+.prose-chat > *:last-child {
+  margin-bottom: 0;
+}
+.prose-chat p {
+  margin: 0.6em 0;
+}
+.prose-chat h1,
+.prose-chat h2,
+.prose-chat h3 {
+  @apply font-display font-semibold text-text;
+  margin: 1em 0 0.5em;
+  line-height: 1.25;
+}
+.prose-chat h1 {
+  font-size: 1.4em;
+}
+.prose-chat h2 {
+  font-size: 1.2em;
+}
+.prose-chat h3 {
+  font-size: 1.05em;
+}
+.prose-chat ul,
+.prose-chat ol {
+  margin: 0.6em 0;
+  padding-left: 1.4em;
+}
+.prose-chat li {
+  margin: 0.25em 0;
+}
+.prose-chat a {
+  @apply text-accent underline underline-offset-2;
+}
+.prose-chat blockquote {
+  @apply border-l-2 border-accent/50 pl-3 text-muted italic;
+  margin: 0.6em 0;
+}
+.prose-chat code:not(pre code) {
+  @apply font-mono text-[0.85em] bg-surface-2 text-text rounded px-1.5 py-0.5;
+}
+.prose-chat pre {
+  @apply bg-surface-2 border border-border rounded-lg overflow-x-auto my-3;
+  padding: 0;
+}
+.prose-chat pre code {
+  @apply font-mono text-[0.82em] block p-4 leading-relaxed;
+}
+.prose-chat table {
+  @apply w-full my-3 text-sm;
+  border-collapse: collapse;
+}
+.prose-chat th,
+.prose-chat td {
+  @apply border border-border px-3 py-1.5 text-left;
+}
+.prose-chat th {
+  @apply bg-surface-2 font-semibold;
+}
+.prose-chat hr {
+  @apply border-border my-4;
+}
+
+/* Streaming cursor */
+.stream-cursor::after {
+  content: "▍";
+  @apply text-accent;
+  animation: blink 1s steps(2) infinite;
+  margin-left: 1px;
+}
