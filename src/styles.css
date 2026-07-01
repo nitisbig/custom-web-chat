@@ -194,6 +194,30 @@ body {
 .prose-chat pre code {
   @apply font-mono text-[0.82em] block p-4 leading-relaxed;
 }
+
+/* Code block with header + copy button (injected by markdown.js) */
+.prose-chat .code-block {
+  @apply my-3 overflow-hidden rounded-lg border border-border;
+}
+.prose-chat .code-block > pre {
+  @apply my-0 rounded-none border-0 border-t border-border;
+}
+.prose-chat .code-block__head {
+  @apply flex items-center justify-between bg-surface-2/70 px-3 py-1.5;
+}
+.prose-chat .code-block__lang {
+  @apply font-mono text-[11px] uppercase tracking-wide text-muted;
+}
+.prose-chat .code-copy {
+  @apply flex items-center gap-1 rounded-md px-1.5 py-1 text-[11px] text-muted transition;
+  cursor: pointer;
+}
+.prose-chat .code-copy:hover {
+  @apply bg-surface text-text;
+}
+.prose-chat .code-copy.is-copied {
+  @apply text-success;
+}
 .prose-chat table {
   @apply w-full my-3 text-sm;
   border-collapse: collapse;

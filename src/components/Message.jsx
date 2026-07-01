@@ -43,6 +43,31 @@ export default function Message({ message }) {
     [message.content, isNote]
   );
 
+  // Delegated handler for the per-code-block copy buttons injected by markdown.js.
+  const onBodyClick = async (e) => {
+    const btn = e.target.closest(".code-copy");
+    if (!btn) return;
+    const code = btn.closest(".code-block")?.querySelector("pre code");
+    if (!code) return;
+    try {
+      await navigator.clipboard.writeText(code.innerText);
+      const label = btn.querySelector("span");
+      if (label && !btn.dataset.copied) {
+        btn.dataset.copied = "1";
+        const prev = label.textContent;
+        label.textContent = "Copied";
+        btn.classList.add("is-copied");
+        setTimeout(() => {
+          label.textContent = prev;
+          btn.classList.remove("is-copied");
+          delete btn.dataset.copied;
+        }, 1400);
+      }
+    } catch {
+      /* clipboard blocked */
+    }
+  };
+
   // System notes render as a slim centered pill.
   if (isNote) {
     return (
@@ -91,6 +116,7 @@ export default function Message({ message }) {
                   "prose-chat",
                   message.streaming && "stream-cursor"
                 )}
+                onClick={onBodyClick}
                 dangerouslySetInnerHTML={{ __html: html }}
               />
             ) : null}
