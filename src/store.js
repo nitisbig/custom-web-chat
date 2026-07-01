@@ -127,6 +127,7 @@ export const useStore = create((set, get) => ({
   settingsOpen: false,
   pluginsOpen: false,
   unlockOpen: false,
+  preview: null, // code string to render in the preview modal; null = closed
   vaultLocked: false,
   vaultTick: 0, // bumped when secrets change, to nudge dependent components
   sidebarOpen: true,
@@ -243,6 +244,12 @@ export const useStore = create((set, get) => ({
   },
   closeUnlock() {
     set({ unlockOpen: false });
+  },
+  openPreview(code) {
+    set({ preview: code });
+  },
+  closePreview() {
+    set({ preview: null });
   },
   toggleSidebar() {
     set({ sidebarOpen: !get().sidebarOpen });

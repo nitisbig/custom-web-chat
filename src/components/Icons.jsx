@@ -98,4 +98,15 @@ export const Icon = {
       <path d="M17 8l-5-5-5 5M12 3v12" />
     </svg>
   ),
+  Play: (p) => (
+    <svg {...base} fill="currentColor" stroke="none" {...p}>
+      <path d="M8 5v14l11-7z" />
+    </svg>
+  ),
+  ExternalLink: (p) => (
+    <svg {...base} {...p}>
+      <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6" />
+      <path d="M15 3h6v6M10 14 21 3" />
+    </svg>
+  ),
 };

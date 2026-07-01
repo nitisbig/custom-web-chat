@@ -47,8 +47,26 @@ function sanitize(html) {
 const COPY_SVG =
   '<svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>';
 
+const PREVIEW_SVG =
+  '<svg viewBox="0 0 24 24" width="14" height="14" fill="currentColor" stroke="none"><path d="M8 5v14l11-7z"/></svg>';
+
+// Languages that name browser-runnable markup outright.
+const PREVIEW_LANGS = new Set(["html", "htm", "xml", "svg"]);
+// Strong signal that unlabeled code is really HTML we can render.
+const HTML_MARKER =
+  /<(!doctype|html|head|body|svg|div|section|main|table|h[1-6]|p|a|img|button|ul|ol)[\s>]/i;
+
+// True when a code block can be rendered in a browser iframe. Named markup langs
+// always qualify; unlabeled/text blocks qualify only if they look like HTML.
+function isPreviewableLang(lang, codeText) {
+  if (PREVIEW_LANGS.has(lang)) return true;
+  if (lang && lang !== "text") return false;
+  return HTML_MARKER.test(codeText || "");
+}
+
 // Wrap each <pre> code block with a header bar carrying a language label and a
-// copy button. The button is inert HTML; Message.jsx wires up clicks.
+// copy button (plus a preview button for browser-runnable code). The buttons are
+// inert HTML; Message.jsx wires up clicks via delegation.
 function enhanceCodeBlocks(doc) {
   const pres = Array.from(doc.body.querySelectorAll("pre"));
   for (const pre of pres) {
@@ -63,9 +81,14 @@ function enhanceCodeBlocks(doc) {
 
     const head = doc.createElement("div");
     head.className = "code-block__head";
+    const preview = isPreviewableLang(lang, code?.textContent)
+      ? `<button type="button" class="code-preview" aria-label="Preview in browser">${PREVIEW_SVG}<span>Preview</span></button>`
+      : "";
     head.innerHTML =
       `<span class="code-block__lang">${lang}</span>` +
-      `<button type="button" class="code-copy" aria-label="Copy code">${COPY_SVG}<span>Copy</span></button>`;
+      `<span class="code-block__actions">${preview}` +
+      `<button type="button" class="code-copy" aria-label="Copy code">${COPY_SVG}<span>Copy</span></button>` +
+      `</span>`;
 
     pre.parentNode.insertBefore(wrap, pre);
     wrap.appendChild(head);

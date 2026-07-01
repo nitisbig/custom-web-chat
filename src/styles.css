@@ -208,15 +208,26 @@ body {
 .prose-chat .code-block__lang {
   @apply font-mono text-[11px] uppercase tracking-wide text-muted;
 }
-.prose-chat .code-copy {
+.prose-chat .code-block__actions {
+  @apply flex items-center gap-1;
+}
+.prose-chat .code-copy,
+.prose-chat .code-preview {
   @apply flex items-center gap-1 rounded-md px-1.5 py-1 text-[11px] text-muted transition;
   cursor: pointer;
 }
-.prose-chat .code-copy:hover {
+.prose-chat .code-copy:hover,
+.prose-chat .code-preview:hover {
   @apply bg-surface text-text;
 }
 .prose-chat .code-copy.is-copied {
   @apply text-success;
+}
+.prose-chat .code-preview {
+  @apply text-accent;
+}
+.prose-chat .code-preview:hover {
+  @apply bg-accent-soft/15 text-accent;
 }
 .prose-chat table {
   @apply w-full my-3 text-sm;

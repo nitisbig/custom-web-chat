@@ -43,8 +43,18 @@ export default function Message({ message }) {
     [message.content, isNote]
   );
 
-  // Delegated handler for the per-code-block copy buttons injected by markdown.js.
+  // Delegated handler for the per-code-block buttons injected by markdown.js.
   const onBodyClick = async (e) => {
+    // Preview: render browser-runnable code in a sandboxed modal.
+    const previewBtn = e.target.closest(".code-preview");
+    if (previewBtn) {
+      const code = previewBtn
+        .closest(".code-block")
+        ?.querySelector("pre code");
+      if (code) useStore.getState().openPreview(code.innerText);
+      return;
+    }
+
     const btn = e.target.closest(".code-copy");
     if (!btn) return;
     const code = btn.closest(".code-block")?.querySelector("pre code");

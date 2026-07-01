@@ -6,6 +6,7 @@ import Composer from "./components/Composer.jsx";
 import SettingsModal from "./components/SettingsModal.jsx";
 import PluginsPanel from "./components/PluginsPanel.jsx";
 import UnlockModal from "./components/UnlockModal.jsx";
+import PreviewModal from "./components/PreviewModal.jsx";
 import ModelPicker from "./components/ModelPicker.jsx";
 import { Icon } from "./components/Icons.jsx";
 
@@ -75,6 +76,7 @@ export default function App() {
       <SettingsModal />
       <PluginsPanel />
       <UnlockModal />
+      <PreviewModal />
     </div>
   );
 }
